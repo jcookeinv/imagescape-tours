@@ -8,8 +8,8 @@
 
   function viewOf(id) { var v = (T.views || {})[id] || {}; return { yaw: v.yaw || 0, pitch: v.pitch === undefined ? -3 : v.pitch }; }
   function titleOf(id) { return (T.titles || {})[id] || ("Scene " + id); }
-  // A measured link is trusted when it fits clearly better than "no move".
-  function link(a, b) { var l = (T.links || {})[a + ">" + b]; return l && l.ncc >= 0.2 && l.ncc - l.base >= 0.1 ? l : null; }
+  // A measured link is trusted when it fits clearly better than "no move" and the reverse measurement agrees (see tools/build_site.py).
+  function link(a, b) { var l = (T.links || {})[a + ">" + b]; return l && l.ok ? l : null; }
   function extra(a, b) { var e = (T.extra || {})[a] || []; for (var i = 0; i < e.length; i++) if (e[i].to === b) return e[i]; return null; }
   function same(a, b) { return (T.identical || []).some(function (p) { return (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a); }); }
   function cfgFor(a, b) {
@@ -321,12 +321,14 @@
     walkBtn.querySelector("span").textContent = on && kind === "walk" ? "Stop walk" : "Walk the route";
   }
   function stopTour() { tourId++; setTourUI(false); }
+  function idle() { return new Promise(function (res) { (function w() { if (!trans) res(); else setTimeout(w, 40); })(); }); }
   // The guided sequence: the scenes and looks come from TOUR.guided = [{id, yaw/pitch keyframes}]
   async function startTour(kind) {
     var my = ++tourId; setTourUI(true, kind || "guided"); hint.classList.add("gone");
+    await idle();   // never start while a scene change is still running
     var alive = function () { return tourId === my; };
     async function T(t, ms) { var ok = await tween(t, ms); return ok && alive(); }
-    async function GO(id) { if (!alive()) return false; var ok = await transit(id, viewOf(id)); return ok && alive(); }
+    async function GO(id) { await idle(); if (!alive()) return false; var ok = await transit(id, viewOf(id)); return ok && alive(); }
     var steps = kind === "walk" ? ORDER.map(function (id) { return { id: id, pans: [{ yaw: 14, ms: 2400 }] }; }) : T_GUIDED();
     for (var i = 0; i < steps.length; i++) {
       var st = steps[i];
