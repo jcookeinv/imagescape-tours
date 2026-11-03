@@ -44,13 +44,16 @@ def hotspots_of(i):
     return out
 
 G67 = TOUR["links"]["006>007"]["p"]
-G78 = TOUR["links"]["007>008"]["p"]
+G78_OLD = TOUR["links"]["007>008"]["p"]
+# 007 > 008 re-fitted so the wall wreaths and the big ring line up through the move (fit on those lights, see tools/fit_rings.py)
+G78 = [-0.1024, 3.1791, 4.3208, 3.9067, -10.3655, 4.1125, -21.3168, 21.3357]
 G2526 = TOUR["links"]["025>026"]["p"]
 HEAD67 = math.degrees(math.atan2(G67[0], G67[1]))
-HEAD78 = math.degrees(math.atan2(G78[0], G78[1]))
+HEAD78 = math.degrees(math.atan2(G78_OLD[0], G78_OLD[1]))      # unchanged: the camera still faces the same way
 HEAD2526 = math.degrees(math.atan2(G2526[0], G2526[1]))
 y7 = HEAD67 - G67[2]
-y8 = HEAD78 - G78[2]
+y8 = HEAD78 - G78_OLD[2]                                       # unchanged: lands on the same view of 008
+Y8_END = y8 + G78[2]                                           # the pose at the end of the move that lands on y8 with the new rotation
 y26 = HEAD2526 - G2526[2]
 
 # ---- timeline (seconds): 006 > 007 > 008 > (into the shop) 025 > 026 ----------------------------------------------
@@ -66,7 +69,7 @@ SEG = {
             (16, -10, -3, 60), (18, HEAD67, -3, 64), (19.6, HEAD67, -3, 64), (24.1, HEAD67, -3, 64)],
     # look across to the stall on the right, linger on it, then come back to the Scene 04 ring
     "007": [(24.1, y7, -3, 64), (24.7, y7, -3, 64), (27.5, 44, -3, 56), (30.1, 52, -3, 48), (33.4, HEAD78, -3, 64),
-            (33.9, HEAD78, -3, 64), (38.4, HEAD78, -3, 64)],
+            (33.9, HEAD78, -3, 64), (38.4, Y8_END, -3, 64)],
     "008": [(38.4, y8, -3, 64), (39.0, y8, -3, 64), (46.6, 80, -11, 56), (47.9, 80, -11, 54), (49.3, 80, -11, 52)],
     "025": [(47.9, -148, -3, 58), (51.5, -140, -3, 56), (55.5, -130, -3, 56), (59.5, -122, -3, 56), (62.9, -110, -3, 58), (67.4, HEAD2526, -3, 62)],
     "026": [(67.4, y26, -3, 62), (69.8, y26, -3, 62), (77.8, y26 + 70, -3, 62), (85.8, y26 + 140, -3, 61), (93.8, y26 + 210, -3, 60),
@@ -155,6 +158,12 @@ def box_hit(O, d, c, xl, xr, zb, zf):
         tz = np.where(d[..., 2] > 1e-6, (zf - O[2]) / d[..., 2], np.where(d[..., 2] < -1e-6, (zb - O[2]) / d[..., 2], big))
     return np.minimum(np.minimum(tx, ty), tz)
 
+TILT = {("007", "008"): (0.172, 1.145)}   # (A, B) -> (pitch, roll) in degrees: B photo's slight tilt relative to A
+def tilt(v, pitch, roll):
+    cp, sp, cr, sr = math.cos(pitch * D2R), math.sin(pitch * D2R), math.cos(roll * D2R), math.sin(roll * D2R)
+    v = np.stack([v[..., 0], cp * v[..., 1] + sp * v[..., 2], -sp * v[..., 1] + cp * v[..., 2]], -1)
+    return np.stack([cr * v[..., 0] - sr * v[..., 1], sr * v[..., 0] + cr * v[..., 1], v[..., 2]], -1)
+
 def travel_ab(numA, numB, prm, pose, prog, kmix):
     """the two photos seen from the moving camera: (view from A, view from B or None)"""
     bx, bz, psi, c, xl, xr, zb, zf = prm
@@ -165,6 +174,8 @@ def travel_ab(numA, numB, prm, pose, prog, kmix):
     b = None
     if kmix > 0.002:
         q = rot_yaw(P - np.array([bx, 0, bz], np.float32), -psi).astype(np.float32)
+        if (numA, numB) in TILT:                       # small tilt between the photos, eased out so the move ends exactly on photo B
+            w_ = 1.0 - sm(0.64, 1.0, prog); q = tilt(q, TILT[(numA, numB)][0] * w_, TILT[(numA, numB)][1] * w_).astype(np.float32)
         b = expo(sample(src(numB), q), numB)
     return a, b
 
@@ -177,7 +188,8 @@ def plan(t):
     for (t0, t1), A, B, g in TRAVELS:
         if t0 <= t <= t1:
             u = (t - t0) / (t1 - t0); prog = sm(0, 1, u)
-            return ("geo", A, B, g, prog, sm(0.42, 0.58, prog), 0.035 * math.sin(math.pi * u) ** 1.5)
+            lo, hi = (0.36, 0.64) if (A, B) == ("007", "008") else (0.42, 0.58)
+            return ("geo", A, B, g, prog, sm(lo, hi, prog), 0.035 * math.sin(math.pi * u) ** 1.5)
     if T_BLUR[0] <= t <= T_BLUR[1]:
         return ("zoom", sm(0, 1, (t - T_BLUR[0]) / (T_BLUR[1] - T_BLUR[0])))
     name = SCENE_AT[0][1]
@@ -204,6 +216,8 @@ def render_pano(t):
     b = np.concatenate(B, 0) if B[0] is not None else None
     if pl[0] == "scene": return a
     k = pl[5] if pl[0] == "geo" else sm(0.44, 0.56, pl[1])
+    if pl[0] == "geo" and (pl[1], pl[2]) == ("007", "008") and a is not None and b is not None:
+        a, b = ring_morph(a, b, t, k, pl[4])
     img = a if b is None else b if a is None else match_blend(a, b, k)
     amount = pl[6] if pl[0] == "geo" else 0.12 * math.sin(math.pi * pl[1]) ** 2
     return radial_blur(img, amount, taps=11 if pl[0] == "geo" else 15)
@@ -234,6 +248,74 @@ def radial_blur(img, amount, centre=(0.5, 0.5), taps=9):
     acc = np.zeros_like(img)
     for f in np.linspace(-0.5, 0.5, taps): acc += remap(img, cx + (xs - cx) * (1 + amount * f), cy + (ys - cy) * (1 + amount * f))
     return acc / taps
+
+
+# ---- keep the circular lights together through 007 > 008 ----------------------------------------------------------
+# One room box cannot place lights at different depths exactly. So each light is located once in each photo (as a 3D point),
+# and during the move it is slid from where photo A puts it to where photo B puts it, with a small local warp around it.
+RING_FILE = os.path.join(ROOT, "tools", "ring_points_007_008.json")
+RING_START = [(237, 237), (575, 236), (1085, 108)]            # left wreath, right wreath (both on the far wall), large ring on the right wall: first view, 1280 wide
+RING_POINTS = json.load(open(RING_FILE)) if os.path.exists(RING_FILE) else None
+
+def _look(P):
+    """(yaw, pitch) in degrees of a vector"""
+    n = np.linalg.norm(P); return math.degrees(math.atan2(P[0], P[2])), math.degrees(math.asin(P[1] / n))
+
+def _centroid(g, cx, cy, rad, thr_frac=0.86):
+    x0, x1, y0, y1 = int(max(0, cx - rad)), int(min(W, cx + rad)), int(max(0, cy - rad)), int(min(H, cy + rad))
+    sub = g[y0:y1, x0:x1]; ys, xs = np.nonzero(sub > thr_frac * sub.max())
+    return (xs.mean() + x0, ys.mean() + y0)
+
+def _ray(x, y, pose):
+    """world ray through pixel (x, y) of a view with this pose"""
+    tx = math.tan(pose[2] * D2R / 2); ty = tx * H / W
+    d = np.array([((x / W) * 2 - 1) * tx, (1 - (y / H) * 2) * ty, 1.0]); d /= np.linalg.norm(d)
+    p = pose[1] * D2R; c, s_ = math.cos(p), math.sin(p); d = np.array([d[0], c * d[1] + s_ * d[2], -s_ * d[1] + c * d[2]])
+    y_ = pose[0] * D2R; c, s_ = math.cos(y_), math.sin(y_); return np.array([c * d[0] + s_ * d[2], d[1], -s_ * d[0] + c * d[2]])
+
+def _radius(g, cx, cy, rad, thr_frac=0.86):
+    x0, x1, y0, y1 = int(max(0, cx - rad)), int(min(W, cx + rad)), int(max(0, cy - rad)), int(min(H, cy + rad))
+    sub = g[y0:y1, x0:x1]; ys, xs = np.nonzero(sub > thr_frac * sub.max())
+    return max(xs.max() - xs.min(), ys.max() - ys.min()) / 2.0
+
+WIDE = 100.0                                                       # measure through a wide view so no light is cut off by the frame edge
+def build_ring_points():
+    global R0, R1, RING_POINTS
+    R0, R1 = 0, H; sc = W / 1280.0; bx, bz, psi, c, xl, xr, zb, zf = G78
+    t0, t1 = T_TR2; pose0, pose1 = POSE["007"](t0), POSE["007"](t1)
+    w0, w1 = (pose0[0], pose0[1], WIDE), (pose1[0], pose1[1], WIDE)
+    k = math.tan(WIDE * D2R / 2) / math.tan(pose0[2] * D2R / 2)    # how much smaller things are in the wide view
+    a0, _ = travel_ab("007", "008", G78, w0, 0.0, 0.0); ga0 = a0.mean(2)
+    _, b1 = travel_ab("007", "008", G78, w1, 1.0, 1.0); gb1 = b1.mean(2)
+    PA, PB, RA, RB = [], [], [], []
+    Z = np.zeros(3, np.float32); Pb = np.array([bx, 0, bz])
+    for (sx, sy) in RING_START:
+        d0 = _ray(sx * sc, sy * sc, pose0); px = project(*_look(d0), w0)       # where that light sits in the wide view
+        cxa, cya = _centroid(ga0, px[0], px[1], 62 * sc / k); d = _ray(cxa, cya, w0)
+        PA.append((d * box_hit(Z, d[None, None, :].astype(np.float32), c, xl, xr, zb, zf)[0, 0]).tolist()); RA.append(_radius(ga0, cxa, cya, 62 * sc / k) * k / sc)
+    for P in PA:                                                       # find the same light in photo B near where A's 3D point lands
+        px = project(*_look(np.array(P) - Pb), w1)
+        cxb, cyb = _centroid(gb1, px[0], px[1], 70 * sc / k); d = _ray(cxb, cyb, w1)
+        PB.append((Pb + d * box_hit(Pb.astype(np.float32), d[None, None, :].astype(np.float32), c, xl, xr, zb, zf)[0, 0]).tolist()); RB.append(_radius(gb1, cxb, cyb, 70 * sc / k) * k / sc)
+    RING_POINTS = {"PA": PA, "PB": PB, "rA": RA, "rB": RB}; json.dump(RING_POINTS, open(RING_FILE, "w")); return RING_POINTS
+
+def ring_morph(a, b, t, k, prog):
+    """glide each light from its place and size in view A to its place and size in view B (a at k=0, b at k=1 untouched)"""
+    if RING_POINTS is None: return a, b
+    h, w = a.shape[:2]; ys, xs = np.mgrid[0:h, 0:w].astype(np.float32); sc = w / 1280.0
+    pose = POSE["007"](t); Pb = np.array([G78[0], 0, G78[1]]); C = Pb * prog
+    SAx, SAy = xs.copy(), ys.copy(); SBx, SBy = xs.copy(), ys.copy()
+    for PA, PB, rA0, rB1 in zip(RING_POINTS["PA"], RING_POINTS["PB"], RING_POINTS["rA"], RING_POINTS["rB"]):
+        PA, PB = np.array(PA), np.array(PB)
+        ca = project(*_look(PA - C), pose); cb = project(*_look(PB - C), pose)
+        if ca is None or cb is None: continue
+        rA = rA0 * np.linalg.norm(PA) / np.linalg.norm(PA - C); rB = rB1 * np.linalg.norm(PB - Pb) / np.linalg.norm(PB - C)
+        s_ = float(np.clip(rB / rA, 0.7, 1.4)); fA = 1 + k * (s_ - 1); fB = fA / s_
+        cm = (ca[0] + k * (cb[0] - ca[0]), ca[1] + k * (cb[1] - ca[1])); rm = rA * sc * fA
+        g = np.exp(-((xs - cm[0]) ** 2 + (ys - cm[1]) ** 2) / (2 * (1.7 * rm) ** 2))
+        SAx += g * ((ca[0] + (xs - cm[0]) / fA) - xs); SAy += g * ((ca[1] + (ys - cm[1]) / fA) - ys)
+        SBx += g * ((cb[0] + (xs - cm[0]) / fB) - xs); SBy += g * ((cb[1] + (ys - cm[1]) / fB) - ys)
+    return remap(a, SAx, SAy), remap(b, SBx, SBy)
 
 # ---- interface overlay -----------------------------------------------------------------------------------------
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
@@ -446,6 +528,7 @@ def frame_at(t):
 def job(i): return frame_at(i / FPS).tobytes()
 
 if __name__ == "__main__":
+    if RING_POINTS is None and (ARGS.stills or ARGS.t_from < T_TR2[1]) and (ARGS.t_to is None or ARGS.t_to > T_TR2[0]): build_ring_points()
     if ARGS.stills:
         for s_ in ARGS.stills.split(","): Image.fromarray(frame_at(float(s_))).save(ARGS.out + "_%06.2f.png" % float(s_))
         sys.exit()
