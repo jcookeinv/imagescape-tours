@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ap = argparse.ArgumentParser()
 ap.add_argument("out"); ap.add_argument("--w", type=int, default=1920); ap.add_argument("--h", type=int, default=1080)
 ap.add_argument("--fps", type=int, default=60); ap.add_argument("--workers", type=int, default=4)
-ap.add_argument("--stills", default=""); ap.add_argument("--src", default="full"); ap.add_argument("--no-ui", action="store_true")
+ap.add_argument("--from", dest="t_from", type=float, default=0.0); ap.add_argument("--to", dest="t_to", type=float, default=None); ap.add_argument("--stills", default=""); ap.add_argument("--src", default="full"); ap.add_argument("--no-ui", action="store_true")
 ARGS = ap.parse_args()
 W, H, FPS = ARGS.w, ARGS.h, ARGS.fps
 H_CAM = 1.6
@@ -31,7 +31,7 @@ NAMED = {"005": "Coffee Shop Entrance", "010": "Sofa Lounge", "017": "Coffee Cou
          "030": "Flowers & Clothing", "031": "Gift Cabinets", "032": "Farmyard", "033": "Courtyard", "034": "Paddock",
          "035": "Farm Track", "036": "Car Park"}
 def title_of(i): return NAMED.get(i, "Scene %02d" % (IDS.index(i) + 1))
-VIDEO_EXTRA = {"008": [{"to": "025", "yaw": 62, "pitch": -11, "label": "Gift Shop"}],
+VIDEO_EXTRA = {"008": [{"to": "025", "yaw": 80, "pitch": -14, "label": "Gift Shop"}],
                "026": [{"to": "025", "yaw": 71, "pitch": -9, "label": "Till Area"}]}
 def link(a, b):
     l = TOUR["links"].get(a + ">" + b); return l if l and l["ok"] else None
@@ -66,7 +66,7 @@ SEG = {
             (16, -10, -3, 60), (18, HEAD67, -3, 64), (19.6, HEAD67, -3, 64), (24.1, HEAD67, -3, 64)],
     "007": [(24.1, y7, -3, 64), (25.3, y7, -3, 64), (28.3, -14, -3, 60), (31.5, 14, -3, 60), (33.4, HEAD78, -3, 64),
             (33.9, HEAD78, -3, 64), (38.4, HEAD78, -3, 64)],
-    "008": [(38.4, y8, -3, 64), (39.8, y8, -3, 64), (46.3, 62, -3, 60), (47.9, 62, -3, 58), (49.3, 65, -4, 54)],
+    "008": [(38.4, y8, -3, 64), (39.0, y8, -3, 64), (46.6, 80, -11, 56), (47.9, 80, -11, 54), (49.3, 80, -11, 52)],
     "025": [(47.9, -148, -3, 58), (51.5, -140, -3, 56), (55.5, -130, -3, 56), (59.5, -122, -3, 56), (62.9, -110, -3, 58), (67.4, HEAD2526, -3, 62)],
     "026": [(67.4, y26, -3, 62), (69.8, y26, -3, 62), (77.8, y26 + 70, -3, 62), (85.8, y26 + 140, -3, 61), (93.8, y26 + 210, -3, 60),
             (99.4, y26 + 258, -3, 60), (101.2, y26 + 260, -3, 60)],
@@ -96,6 +96,16 @@ for name, keys in SEG.items():
 
 def sm(a, b, x):
     x = min(1.0, max(0.0, (x - a) / (b - a))); return x * x * x * (x * (6 * x - 15) + 10)
+
+# measured gain that makes a scene continue the exposure of the previous one (median ratio over the shared view)
+EXPO = {"026": np.array([1.213, 1.269, 1.28], np.float32)}
+def expo(img, name):
+    g = EXPO.get(name)
+    if g is None or img is None: return img
+    y = img * g
+    hi = 225.0                                   # soft shoulder so lifted highlights roll off instead of clipping
+    over = y > hi
+    return np.where(over, hi + (255 - hi) * (1 - np.exp(-(y - hi) / (255 - hi))), y).astype(np.float32)
 
 # ---- panorama rendering ----------------------------------------------------------------------------------------
 SRC = {}
@@ -154,12 +164,12 @@ def travel_ab(numA, numB, prm, pose, prog, kmix):
     b = None
     if kmix > 0.002:
         q = rot_yaw(P - np.array([bx, 0, bz], np.float32), -psi).astype(np.float32)
-        b = sample(src(numB), q)
+        b = expo(sample(src(numB), q), numB)
     return a, b
 
 def scene_view(name, t, fov_scale=1.0):
     y, p, f = POSE[name](t)
-    return sample(src(name), view_dirs(y, p, f * fov_scale))
+    return expo(sample(src(name), view_dirs(y, p, f * fov_scale)), name)
 
 def plan(t):
     """what to draw at time t: ('geo', A, B, params, prog, kmix, blur) | ('zoom', e) | ('scene', name)"""
@@ -179,7 +189,7 @@ def strip_views(t, pl):
         _, A, B, g, prog, kmix, _ = pl
         return travel_ab(A, B, g, POSE[A](t), prog, kmix)
     if pl[0] == "zoom":
-        e = pl[1]; S = 1.35; z = 1 + (S - 1) * e; k = sm(0.35, 0.65, e)
+        e = pl[1]; S = 1.5; z = 1 + (S - 1) * e; k = sm(0.44, 0.56, e)
         return (scene_view("008", t, 1 / z) if k < 0.998 else None), (scene_view("025", t, S / z) if k > 0.002 else None)
     return scene_view(pl[1], t), None
 
@@ -192,10 +202,10 @@ def render_pano(t):
     a = np.concatenate(A, 0) if A[0] is not None else None
     b = np.concatenate(B, 0) if B[0] is not None else None
     if pl[0] == "scene": return a
-    k = pl[5] if pl[0] == "geo" else sm(0.35, 0.65, pl[1])
+    k = pl[5] if pl[0] == "geo" else sm(0.44, 0.56, pl[1])
     img = a if b is None else b if a is None else match_blend(a, b, k)
-    amount = pl[6] if pl[0] == "geo" else 0.04 * math.sin(math.pi * pl[1])
-    return radial_blur(img, amount, taps=11)
+    amount = pl[6] if pl[0] == "geo" else 0.12 * math.sin(math.pi * pl[1]) ** 2
+    return radial_blur(img, amount, taps=11 if pl[0] == "geo" else 15)
 
 # ---- blending helpers -------------------------------------------------------------------------------------------
 def remap(img, xs, ys):
@@ -438,12 +448,12 @@ if __name__ == "__main__":
     if ARGS.stills:
         for s_ in ARGS.stills.split(","): Image.fromarray(frame_at(float(s_))).save(ARGS.out + "_%06.2f.png" % float(s_))
         sys.exit()
-    n = int(TOTAL * FPS)
+    f0 = int(round(ARGS.t_from * FPS)); f1 = int(round((ARGS.t_to if ARGS.t_to is not None else TOTAL) * FPS)); n = f1 - f0
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-r", str(FPS),
                            "-i", "-", "-vf", "unsharp=5:5:0.4:5:5:0.0", "-c:v", "libx264", "-preset", "medium", "-crf", "16",
                            "-pix_fmt", "yuv420p", "-movflags", "+faststart", ARGS.out], stdin=subprocess.PIPE)
     with Pool(ARGS.workers) as pool:
-        for k, raw in enumerate(pool.imap(job, range(n), chunksize=2)):
+        for k, raw in enumerate(pool.imap(job, range(f0, f1), chunksize=2)):
             ff.stdin.write(raw)
             if k % 120 == 0: print(k, "/", n, flush=True)
     ff.stdin.close(); ff.wait(); print("done")
