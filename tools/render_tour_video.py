@@ -24,20 +24,21 @@ D2R = math.pi / 180
 S_UI = W / 1280.0
 
 TOUR = json.loads(open(os.path.join(ROOT, "docs", "scenes.js")).read().split("=", 1)[1].strip().rstrip(";"))
-IDS = [s["id"] for s in TOUR["scenes"]]
-def title_of(i): return TOUR["titles"].get(i, "Scene " + i)
+IDS = ["006", "007", "025", "026"]                       # the four scenes of this video
+TITLES = {"006": "Coffee Shop Entrance", "007": "Scene 02", "025": "Scene 03", "026": "Scene 04"}
+def title_of(i): return TITLES[i]
 def link(a, b):
     l = TOUR["links"].get(a + ">" + b); return l if l and l["ok"] else None
 def hotspots_of(i):
-    k = IDS.index(i); out = []
-    extras = TOUR["extra"].get(i, [])
-    for nb in (IDS[k - 1] if k > 0 else None, IDS[k + 1] if k + 1 < len(IDS) else None):
-        if nb is None: continue
-        l = link(i, nb)
-        if l and not any(e["to"] == nb for e in extras):
-            out.append({"to": nb, "yaw": math.degrees(math.atan2(l["p"][0], l["p"][1])), "pitch": -9, "label": title_of(nb)})
-    for e in extras: out.append({"to": e["to"], "yaw": e["yaw"], "pitch": e["pitch"], "label": e.get("label") or title_of(e["to"])})
-    return out
+    """rings shown in this video, named for what they lead to"""
+    return {
+        "006": [{"to": "007", "yaw": HEAD67, "pitch": -9, "label": "Scene 02"}],
+        "007": [{"to": "006", "yaw": math.degrees(math.atan2(*TOUR["links"]["007>006"]["p"][:2])), "pitch": -9, "label": "Coffee Shop Entrance"},
+                {"to": "025", "yaw": 72, "pitch": -12, "label": "Gift Shop"}],
+        "025": [{"to": "007", "yaw": 62, "pitch": -10, "label": "Coffee Shop"},
+                {"to": "026", "yaw": -107, "pitch": -9, "label": "Shop Floor"}],
+        "026": [{"to": "025", "yaw": 71, "pitch": -9, "label": "Soft Toy Display"}],
+    }[i]
 
 G67 = TOUR["links"]["006>007"]["p"]
 G2526 = TOUR["links"]["025>026"]["p"]
@@ -47,22 +48,22 @@ y7 = HEAD67 - G67[2]
 y26 = HEAD2526 - G2526[2]
 
 # ---- timeline (seconds) ---------------------------------------------------------------------------------------
-T_TRAVEL1 = (24.5, 33.5)       # 006 -> 007
-T_BLUR = (47.3, 49.5)          # 007 -> 025 (zoom dissolve, as in the viewer)
-T_TRAVEL2 = (88.6, 97.6)       # 025 -> 026
-TOTAL = 139.5
+T_TRAVEL1 = (19.6, 24.1)       # 006 -> 007
+T_BLUR = (35.3, 36.7)          # 007 -> 025 (zoom dissolve, as in the viewer)
+T_TRAVEL2 = (66.1, 70.6)       # 025 -> 026
+TOTAL = 104.4
 FADE_IN, FADE_OUT = 0.8, 1.5
 SEG = {
-    "006": [(0, -66, -2, 76), (6, -56, -2, 70), (12, -36, -2, 56), (15, -30, -2, 52), (17, -28, -2, 52),
-            (20, -10, -3, 60), (22.5, HEAD67, -3, 64), (24.5, HEAD67, -3, 64), (33.5, HEAD67, -3, 64)],
-    "007": [(33.5, y7, -3, 64), (36, y7, -3, 64), (42, 35, -3, 58), (47.3, 70, -4, 54), (49.5, 74, -4, 52)],
-    "025": [(47.3, 8, -4, 60), (51.5, 8, -3, 58), (57, 40, -3, 60), (65, 100, -3, 62), (73, 160, -3, 62),
-            (80, 215, -3, 62), (85, HEAD2526, -3, 62), (88.6, HEAD2526, -3, 62), (97.6, HEAD2526, -3, 62)],
-    "026": [(97.6, y26, -3, 62), (100, y26, -3, 62), (110, y26 + 70, -3, 62), (120, y26 + 140, -3, 61), (130, y26 + 210, -3, 60),
-            (137, y26 + 258, -3, 60), (139.5, y26 + 260, -3, 60)],
+    "006": [(0, -66, -2, 76), (4.8, -56, -2, 70), (9.6, -36, -2, 56), (12, -30, -2, 52), (13.6, -28, -2, 52),
+            (16, -10, -3, 60), (18, HEAD67, -3, 64), (19.6, HEAD67, -3, 64), (24.1, HEAD67, -3, 64)],
+    "007": [(24.1, y7, -3, 64), (26.1, y7, -3, 64), (30.9, 35, -3, 58), (35.1, 70, -4, 54), (36.7, 74, -4, 52)],
+    "025": [(35.3, 8, -4, 60), (38.7, 8, -3, 58), (43.1, 40, -3, 60), (49.5, 100, -3, 62), (55.9, 160, -3, 62),
+            (61.5, 215, -3, 62), (65.5, HEAD2526, -3, 62), (66.1, HEAD2526, -3, 62), (70.6, HEAD2526, -3, 62)],
+    "026": [(70.6, y26, -3, 62), (73, y26, -3, 62), (81, y26 + 70, -3, 62), (89, y26 + 140, -3, 61), (97, y26 + 210, -3, 60),
+            (102.6, y26 + 258, -3, 60), (104.4, y26 + 260, -3, 60)],
 }
 # mouse clicks: (cursor appears, click, scene, target scene)
-CLICKS = [(21.8, 24.1, "006", "007"), (44.6, 47.0, "007", "025"), (86.0, 88.3, "025", "026")]
+CLICKS = [(16.9, 19.1, "006", "007"), (32.6, 34.9, "007", "025"), (63.4, 65.8, "025", "026")]
 SCENE_AT = [(0, "006"), (T_TRAVEL1[1], "007"), (T_BLUR[1], "025"), (T_TRAVEL2[1], "026")]
 HINT = (1.5, 6.5)
 
@@ -134,41 +135,82 @@ def box_hit(O, d, c, xl, xr, zb, zf):
         tz = np.where(d[..., 2] > 1e-6, (zf - O[2]) / d[..., 2], np.where(d[..., 2] < -1e-6, (zb - O[2]) / d[..., 2], big))
     return np.minimum(np.minimum(tx, ty), tz)
 
-def travel(numA, numB, prm, pose, prog, kmix):
+def travel_ab(numA, numB, prm, pose, prog, kmix):
+    """the two photos seen from the moving camera: (view from A, view from B or None)"""
     bx, bz, psi, c, xl, xr, zb, zf = prm
     d = view_dirs(*pose)
     C = np.array([bx * prog, 0, bz * prog], np.float32)
     P = C + box_hit(C, d, c, xl, xr, zb, zf)[..., None] * d
-    a = sample(src(numA), P)
+    a = sample(src(numA), P) if kmix < 0.998 else None
+    b = None
     if kmix > 0.002:
         q = rot_yaw(P - np.array([bx, 0, bz], np.float32), -psi).astype(np.float32)
-        a = a * (1 - kmix) + sample(src(numB), q) * kmix
-    return a
+        b = sample(src(numB), q)
+    return a, b
 
 def scene_view(name, t, fov_scale=1.0):
     y, p, f = POSE[name](t)
     return sample(src(name), view_dirs(y, p, f * fov_scale))
 
-def frame_strip(t):
-    if T_TRAVEL1[0] <= t <= T_TRAVEL1[1]:
-        prog = sm(0, 1, (t - T_TRAVEL1[0]) / (T_TRAVEL1[1] - T_TRAVEL1[0]))
-        return travel("006", "007", G67, POSE["006"](t), prog, sm(0.4, 0.6, prog))
-    if T_TRAVEL2[0] <= t <= T_TRAVEL2[1]:
-        prog = sm(0, 1, (t - T_TRAVEL2[0]) / (T_TRAVEL2[1] - T_TRAVEL2[0]))
-        return travel("025", "026", G2526, POSE["025"](t), prog, sm(0.4, 0.6, prog))
-    if T_BLUR[0] <= t <= T_BLUR[1]:                      # zoom dissolve, as the viewer does for distant scenes
-        e = sm(0, 1, (t - T_BLUR[0]) / (T_BLUR[1] - T_BLUR[0])); S = 1.35; z = 1 + (S - 1) * e
-        return scene_view("007", t, 1 / z) * (1 - sm(0.32, 0.68, e)) + scene_view("025", t, S / z) * sm(0.32, 0.68, e)
-    name = "006" if t < T_TRAVEL1[0] else "007" if t < T_BLUR[0] else "025" if t < T_TRAVEL2[0] else "026"
-    return scene_view(name, t)
+def plan(t):
+    """what to draw at time t: ('geo', A, B, params, prog, kmix, blur) | ('zoom', e) | ('scene', name)"""
+    for (t0, t1), A, B, g in ((T_TRAVEL1, "006", "007", G67), (T_TRAVEL2, "025", "026", G2526)):
+        if t0 <= t <= t1:
+            u = (t - t0) / (t1 - t0); prog = sm(0, 1, u)
+            return ("geo", A, B, g, prog, sm(0.42, 0.58, prog), 0.035 * math.sin(math.pi * u) ** 1.5)
+    if T_BLUR[0] <= t <= T_BLUR[1]:
+        return ("zoom", sm(0, 1, (t - T_BLUR[0]) / (T_BLUR[1] - T_BLUR[0])))
+    return ("scene", "006" if t < T_TRAVEL1[0] else "007" if t < T_BLUR[0] else "025" if t < T_TRAVEL2[0] else "026")
+
+def strip_views(t, pl):
+    if pl[0] == "geo":
+        _, A, B, g, prog, kmix, _ = pl
+        return travel_ab(A, B, g, POSE[A](t), prog, kmix)
+    if pl[0] == "zoom":
+        e = pl[1]; S = 1.35; z = 1 + (S - 1) * e; k = sm(0.35, 0.65, e)
+        return (scene_view("007", t, 1 / z) if k < 0.998 else None), (scene_view("025", t, S / z) if k > 0.002 else None)
+    return scene_view(pl[1], t), None
 
 def render_pano(t):
     global R0, R1
-    out = []
+    pl = plan(t); A, B = [], []
     for r in range(0, H, STRIP):
-        R0, R1 = r, min(H, r + STRIP); out.append(frame_strip(t))
+        R0, R1 = r, min(H, r + STRIP); a, b = strip_views(t, pl); A.append(a); B.append(b)
     R0, R1 = 0, H
-    return np.concatenate(out, 0)
+    a = np.concatenate(A, 0) if A[0] is not None else None
+    b = np.concatenate(B, 0) if B[0] is not None else None
+    if pl[0] == "scene": return a
+    k = pl[5] if pl[0] == "geo" else sm(0.35, 0.65, pl[1])
+    img = a if b is None else b if a is None else match_blend(a, b, k)
+    amount = pl[6] if pl[0] == "geo" else 0.04 * math.sin(math.pi * pl[1])
+    return radial_blur(img, amount, taps=11)
+
+# ---- blending helpers -------------------------------------------------------------------------------------------
+def remap(img, xs, ys):
+    h, w = img.shape[:2]
+    x0 = np.floor(xs).astype(np.int32); y0 = np.floor(ys).astype(np.int32)
+    fx = (xs - x0)[..., None]; fy = (ys - y0)[..., None]
+    x0c = np.clip(x0, 0, w - 1); x1c = np.clip(x0 + 1, 0, w - 1); y0c = np.clip(y0, 0, h - 1); y1c = np.clip(y0 + 1, 0, h - 1)
+    a = img[y0c, x0c] * (1 - fx) + img[y0c, x1c] * fx; b = img[y1c, x0c] * (1 - fx) + img[y1c, x1c] * fx
+    return a * (1 - fy) + b * fy
+
+def resize(a, h2, w2):
+    h, w = a.shape[:2]
+    ys, xs = np.meshgrid((np.arange(h2) + .5) * h / h2 - .5, (np.arange(w2) + .5) * w / w2 - .5, indexing="ij")
+    return remap(a if a.ndim == 3 else a[..., None], xs.astype(np.float32), ys.astype(np.float32)).reshape((h2, w2) + a.shape[2:])
+
+def match_blend(a, b, k):
+    """cross-fade a -> b with the overall brightness/colour interpolated smoothly, so exposure differences do not pop"""
+    ma = a.reshape(-1, 3).mean(0) + 1.0; mb = b.reshape(-1, 3).mean(0) + 1.0
+    mt = ma ** (1 - k) * mb ** k
+    return a * (mt / ma) * (1 - k) + b * (mt / mb) * k
+
+def radial_blur(img, amount, centre=(0.5, 0.5), taps=9):
+    if amount < 0.002: return img
+    h, w = img.shape[:2]; ys, xs = np.mgrid[0:h, 0:w].astype(np.float32); cx, cy = centre[0] * w, centre[1] * h
+    acc = np.zeros_like(img)
+    for f in np.linspace(-0.5, 0.5, taps): acc += remap(img, cx + (xs - cx) * (1 + amount * f), cy + (ys - cy) * (1 + amount * f))
+    return acc / taps
 
 # ---- interface overlay -----------------------------------------------------------------------------------------
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
@@ -299,12 +341,41 @@ def hotspot_patch(label, hover, pulse):
     return out
 
 def cursor_patch(press):
-    s = S_UI * SS * (0.88 if press else 1.0)
+    s = S_UI * SS * (0.86 if press else 1.0)
     im = Image.new("RGBA", (int(26 * s), int(32 * s)), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     pts = [(2, 2), (2, 23), (7, 18.5), (10.5, 26.5), (14, 25), (10.5, 17), (17, 17)]
     pts = [(x * s, y * s) for x, y in pts]
     d.polygon(pts, fill=(255, 255, 255, 255), outline=(20, 20, 20, 255)); d.line(pts + [pts[0]], fill=(20, 20, 20, 255), width=int(1.4 * s))
     return np.asarray(down(im)).astype(np.float32)
+
+def ripple_patch(k):
+    """expanding click ripple, k = 0..1"""
+    R = 40 * S_UI; im = Image.new("RGBA", (int(2 * R * SS), int(2 * R * SS)), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+    r = (6 + 30 * k) * S_UI * SS; a = int(150 * (1 - k)); c = R * SS
+    d.ellipse((c - r, c - r, c + r, c + r), outline=(255, 255, 255, a), width=int(2.2 * S_UI * SS))
+    return np.asarray(down(im)).astype(np.float32), R
+
+MOUSE_START = [(0.74, 0.70), (0.30, 0.68), (0.70, 0.30)]
+def minjerk(u):
+    u = min(1.0, max(0.0, u)); return 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5
+
+def human_cursor(t, click, tgt, idx):
+    """curved approach, small overshoot and correction, a pause, hand tremor; returns (x, y, alpha, pressed, ripple_k or None)"""
+    t0, t1 = click[0], click[1]; t_arr = t1 - 0.55
+    P0 = np.array([MOUSE_START[idx][0] * W, MOUSE_START[idx][1] * H]); T = np.array(tgt, float)
+    v = T - P0; dist = np.linalg.norm(v) + 1e-6; dirv = v / dist; perp = np.array([-dirv[1], dirv[0]]) * (1 if idx % 2 == 0 else -1)
+    T1 = T + dirv * 15 * S_UI                                     # overshoots a little
+    ctrl = P0 + v * 0.45 + perp * 0.17 * dist
+    u = minjerk((t - t0) / (t_arr - t0))
+    pos = (1 - u) ** 2 * P0 + 2 * (1 - u) * u * ctrl + u ** 2 * T1
+    if t > t_arr: pos = T1 + (T - T1) * minjerk((t - t_arr) / 0.30)
+    ph = idx * 1.7
+    tremor = 1.2 * S_UI * np.array([math.sin(2 * math.pi * 5.3 * t + ph) + 0.5 * math.sin(2 * math.pi * 11.0 * t + 2 * ph),
+                                    math.sin(2 * math.pi * 6.7 * t + 1.3 + ph) + 0.5 * math.sin(2 * math.pi * 9.1 * t + ph)])
+    pos = pos + tremor * (0.45 + 0.55 * (1 - u))
+    pressed = t1 <= t <= t1 + 0.14
+    ripple = (t - t1) / 0.45 if t1 <= t <= t1 + 0.45 else None
+    return pos[0], pos[1], sm(t0, t0 + 0.35, t), pressed, ripple
 
 def ease(k): return 4 * k ** 3 if k < 0.5 else 1 - (-2 * k + 2) ** 3 / 2
 
@@ -337,16 +408,15 @@ def draw_ui(img, t):
     for h in hotspots_of(sid):
         pos = project(h["yaw"], h["pitch"], pose)
         if pos is None or not (-120 < pos[0] < W + 120 and -60 < pos[1] < H + 60): continue
-        hover = 0.0
-        if click and click[3] == h["to"]: hover = sm(click[1] - 0.6, click[1] - 0.2, t)
+        hover = 0.0; is_target = bool(click and click[3] == h["to"])
+        if is_target: hover = sm(click[1] - 0.55, click[1] - 0.3, t)         # lights up as the pointer arrives
         patch, ox, oy = hotspot_patch(h["label"], hover, (t % 2.4) / 2.4)
         blend(img, patch, pos[0] - ox, pos[1] - oy)
-        if click and click[3] == h["to"]:
-            k = ease(min(1, (t - click[0]) / (click[1] - click[0] - 0.3)))
-            sx0, sy0 = W * 0.70, H * 0.62
-            cxp, cyp = sx0 + (pos[0] - sx0) * k, sy0 + (pos[1] - sy0) * k
-            press = click[1] - 0.05 <= t <= click[1] + 0.25
-            blend(img, cursor_patch(press), cxp - 2 * S_UI, cyp - 2 * S_UI)
+        if is_target:
+            cx_, cy_, ca, pressed, rip = human_cursor(t, click, pos, CLICKS.index(click))
+            if rip is not None:
+                rp, R = ripple_patch(rip); blend(img, rp, cx_ - R, cy_ - R)
+            blend(img, cursor_patch(pressed), cx_ - 2 * S_UI, cy_ - 2 * S_UI, ca)
 
 def frame_at(t):
     img = render_pano(t)
