@@ -24,47 +24,56 @@ D2R = math.pi / 180
 S_UI = W / 1280.0
 
 TOUR = json.loads(open(os.path.join(ROOT, "docs", "scenes.js")).read().split("=", 1)[1].strip().rstrip(";"))
-IDS = ["006", "007", "025", "026"]                       # the four scenes of this video
-TITLES = {"006": "Coffee Shop Entrance", "007": "Scene 02", "025": "Scene 03", "026": "Scene 04"}
-def title_of(i): return TITLES[i]
+IDS = [x["id"] for x in TOUR["scenes"]]
+# names for this video: scenes are numbered by position from 01 (the entrance photo), distinctive places are named
+NAMED = {"005": "Coffee Shop Entrance", "010": "Sofa Lounge", "017": "Coffee Counter", "021": "Black Sofa Area",
+         "025": "Till Area", "026": "Shop Floor", "027": "Homeware Shelves", "028": "Christmas Gifts", "029": "Clothing Rails",
+         "030": "Flowers & Clothing", "031": "Gift Cabinets", "032": "Farmyard", "033": "Courtyard", "034": "Paddock",
+         "035": "Farm Track", "036": "Car Park"}
+def title_of(i): return NAMED.get(i, "Scene %02d" % (IDS.index(i) + 1))
+VIDEO_EXTRA = {"008": [{"to": "025", "yaw": 62, "pitch": -11, "label": "Gift Shop"}],
+               "026": [{"to": "025", "yaw": 71, "pitch": -9, "label": "Till Area"}]}
 def link(a, b):
     l = TOUR["links"].get(a + ">" + b); return l if l and l["ok"] else None
 def hotspots_of(i):
-    """rings shown in this video, named for what they lead to"""
-    return {
-        "006": [{"to": "007", "yaw": HEAD67, "pitch": -9, "label": "Scene 02"}],
-        "007": [{"to": "006", "yaw": math.degrees(math.atan2(*TOUR["links"]["007>006"]["p"][:2])), "pitch": -9, "label": "Coffee Shop Entrance"},
-                {"to": "025", "yaw": 72, "pitch": -12, "label": "Gift Shop"}],
-        "025": [{"to": "007", "yaw": 62, "pitch": -10, "label": "Coffee Shop"},
-                {"to": "026", "yaw": -107, "pitch": -9, "label": "Shop Floor"}],
-        "026": [{"to": "025", "yaw": 71, "pitch": -9, "label": "Soft Toy Display"}],
-    }[i]
+    k = IDS.index(i); out = []
+    for nb in (IDS[k - 1] if k > 0 else None, IDS[k + 1] if k + 1 < len(IDS) else None):
+        l = link(i, nb) if nb else None
+        if l: out.append({"to": nb, "yaw": math.degrees(math.atan2(l["p"][0], l["p"][1])), "pitch": -9, "label": title_of(nb)})
+    for e in VIDEO_EXTRA.get(i, []): out.append(dict(e))
+    return out
 
 G67 = TOUR["links"]["006>007"]["p"]
+G78 = TOUR["links"]["007>008"]["p"]
 G2526 = TOUR["links"]["025>026"]["p"]
 HEAD67 = math.degrees(math.atan2(G67[0], G67[1]))
-HEAD2526 = math.degrees(math.atan2(G2526[0], G2526[1])) + 360          # unwrapped so the sweep to it is clockwise
+HEAD78 = math.degrees(math.atan2(G78[0], G78[1]))
+HEAD2526 = math.degrees(math.atan2(G2526[0], G2526[1]))
 y7 = HEAD67 - G67[2]
+y8 = HEAD78 - G78[2]
 y26 = HEAD2526 - G2526[2]
 
-# ---- timeline (seconds) ---------------------------------------------------------------------------------------
-T_TRAVEL1 = (19.6, 24.1)       # 006 -> 007
-T_BLUR = (35.3, 36.7)          # 007 -> 025 (zoom dissolve, as in the viewer)
-T_TRAVEL2 = (66.1, 70.6)       # 025 -> 026
-TOTAL = 104.4
+# ---- timeline (seconds): 006 > 007 > 008 > (into the shop) 025 > 026 ----------------------------------------------
+T_TR1 = (19.6, 24.1)           # 006 -> 007
+T_TR2 = (33.9, 38.4)           # 007 -> 008
+T_BLUR = (47.9, 49.3)          # 008 -> 025 (zoom dissolve, as in the viewer)
+T_TR3 = (62.9, 67.4)           # 025 -> 026
+TRAVELS = [(T_TR1, "006", "007", G67), (T_TR2, "007", "008", G78), (T_TR3, "025", "026", G2526)]
+TOTAL = 101.2
 FADE_IN, FADE_OUT = 0.8, 1.5
 SEG = {
     "006": [(0, -66, -2, 76), (4.8, -56, -2, 70), (9.6, -36, -2, 56), (12, -30, -2, 52), (13.6, -28, -2, 52),
             (16, -10, -3, 60), (18, HEAD67, -3, 64), (19.6, HEAD67, -3, 64), (24.1, HEAD67, -3, 64)],
-    "007": [(24.1, y7, -3, 64), (26.1, y7, -3, 64), (30.9, 35, -3, 58), (35.1, 70, -4, 54), (36.7, 74, -4, 52)],
-    "025": [(35.3, 8, -4, 60), (38.7, 8, -3, 58), (43.1, 40, -3, 60), (49.5, 100, -3, 62), (55.9, 160, -3, 62),
-            (61.5, 215, -3, 62), (65.5, HEAD2526, -3, 62), (66.1, HEAD2526, -3, 62), (70.6, HEAD2526, -3, 62)],
-    "026": [(70.6, y26, -3, 62), (73, y26, -3, 62), (81, y26 + 70, -3, 62), (89, y26 + 140, -3, 61), (97, y26 + 210, -3, 60),
-            (102.6, y26 + 258, -3, 60), (104.4, y26 + 260, -3, 60)],
+    "007": [(24.1, y7, -3, 64), (25.3, y7, -3, 64), (28.3, -14, -3, 60), (31.5, 14, -3, 60), (33.4, HEAD78, -3, 64),
+            (33.9, HEAD78, -3, 64), (38.4, HEAD78, -3, 64)],
+    "008": [(38.4, y8, -3, 64), (39.8, y8, -3, 64), (46.3, 62, -3, 60), (47.9, 62, -3, 58), (49.3, 65, -4, 54)],
+    "025": [(47.9, -148, -3, 58), (51.5, -140, -3, 56), (55.5, -130, -3, 56), (59.5, -122, -3, 56), (62.9, -110, -3, 58), (67.4, HEAD2526, -3, 62)],
+    "026": [(67.4, y26, -3, 62), (69.8, y26, -3, 62), (77.8, y26 + 70, -3, 62), (85.8, y26 + 140, -3, 61), (93.8, y26 + 210, -3, 60),
+            (99.4, y26 + 258, -3, 60), (101.2, y26 + 260, -3, 60)],
 }
 # mouse clicks: (cursor appears, click, scene, target scene)
-CLICKS = [(16.9, 19.1, "006", "007"), (32.6, 34.9, "007", "025"), (63.4, 65.8, "025", "026")]
-SCENE_AT = [(0, "006"), (T_TRAVEL1[1], "007"), (T_BLUR[1], "025"), (T_TRAVEL2[1], "026")]
+CLICKS = [(16.9, 19.1, "006", "007"), (31.3, 33.6, "007", "008"), (45.3, 47.6, "008", "025"), (60.3, 62.6, "025", "026")]
+SCENE_AT = [(0, "006"), (T_TR1[1], "007"), (T_TR2[1], "008"), (T_BLUR[1], "025"), (T_TR3[1], "026")]
 HINT = (1.5, 6.5)
 
 def pchip(ts, vs):
@@ -154,13 +163,16 @@ def scene_view(name, t, fov_scale=1.0):
 
 def plan(t):
     """what to draw at time t: ('geo', A, B, params, prog, kmix, blur) | ('zoom', e) | ('scene', name)"""
-    for (t0, t1), A, B, g in ((T_TRAVEL1, "006", "007", G67), (T_TRAVEL2, "025", "026", G2526)):
+    for (t0, t1), A, B, g in TRAVELS:
         if t0 <= t <= t1:
             u = (t - t0) / (t1 - t0); prog = sm(0, 1, u)
             return ("geo", A, B, g, prog, sm(0.42, 0.58, prog), 0.035 * math.sin(math.pi * u) ** 1.5)
     if T_BLUR[0] <= t <= T_BLUR[1]:
         return ("zoom", sm(0, 1, (t - T_BLUR[0]) / (T_BLUR[1] - T_BLUR[0])))
-    return ("scene", "006" if t < T_TRAVEL1[0] else "007" if t < T_BLUR[0] else "025" if t < T_TRAVEL2[0] else "026")
+    name = SCENE_AT[0][1]
+    for ts, sid in SCENE_AT:
+        if t >= ts: name = sid
+    return ("scene", name)
 
 def strip_views(t, pl):
     if pl[0] == "geo":
@@ -168,7 +180,7 @@ def strip_views(t, pl):
         return travel_ab(A, B, g, POSE[A](t), prog, kmix)
     if pl[0] == "zoom":
         e = pl[1]; S = 1.35; z = 1 + (S - 1) * e; k = sm(0.35, 0.65, e)
-        return (scene_view("007", t, 1 / z) if k < 0.998 else None), (scene_view("025", t, S / z) if k > 0.002 else None)
+        return (scene_view("008", t, 1 / z) if k < 0.998 else None), (scene_view("025", t, S / z) if k > 0.002 else None)
     return scene_view(pl[1], t), None
 
 def render_pano(t):
@@ -237,7 +249,7 @@ def build_static(scene_id):
     full = Image.new("RGBA", (W, H), (0, 0, 0, 0)); s = S_UI * SS
     # title card
     f1, f2 = font("Medium", 11 * s), font("Bold", 18 * s)
-    n = "SCENE %d OF %d" % (IDS.index(scene_id) + 1, len(IDS))
+    n = "SCENE %02d OF %d" % (IDS.index(scene_id) + 1, len(IDS))
     tw = max(text_w(f1, n) * 1.12, text_w(f2, title_of(scene_id))) / s
     card = pill(tw + 28, 54); d = ImageDraw.Draw(card)
     x = 14 * s; sp = 0
@@ -275,7 +287,7 @@ def chip_strip(cur_id):
     s = S_UI * SS; f1, f2 = font("Medium", 11 * s), font("Medium", 14 * s)
     items, x = [], 0
     for i, sid in enumerate(IDS):
-        t1 = "%d / %d" % (i + 1, len(IDS)); t2 = title_of(sid)
+        t1 = "%02d / %d" % (i + 1, len(IDS)); t2 = title_of(sid)
         w = max(text_w(f1, t1), text_w(f2, t2)) / s + 24; items.append((sid, t1, t2, x, w)); x += w + CHIP_GAP
     strip = Image.new("RGBA", (int(x * S_UI) + 4, int((CHIP_H + 4) * S_UI)), (0, 0, 0, 0)); xs = {}
     for sid, t1, t2, cx, w in items:
@@ -355,24 +367,20 @@ def ripple_patch(k):
     d.ellipse((c - r, c - r, c + r, c + r), outline=(255, 255, 255, a), width=int(2.2 * S_UI * SS))
     return np.asarray(down(im)).astype(np.float32), R
 
-MOUSE_START = [(0.74, 0.70), (0.30, 0.68), (0.70, 0.30)]
+MOUSE_START = [(0.74, 0.70), (0.30, 0.68), (0.70, 0.30), (0.26, 0.34)]
 def minjerk(u):
     u = min(1.0, max(0.0, u)); return 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5
 
 def human_cursor(t, click, tgt, idx):
-    """curved approach, small overshoot and correction, a pause, hand tremor; returns (x, y, alpha, pressed, ripple_k or None)"""
+    """curved approach, a soft overshoot and correction, a pause; returns (x, y, alpha, pressed, ripple_k or None)"""
     t0, t1 = click[0], click[1]; t_arr = t1 - 0.55
     P0 = np.array([MOUSE_START[idx][0] * W, MOUSE_START[idx][1] * H]); T = np.array(tgt, float)
     v = T - P0; dist = np.linalg.norm(v) + 1e-6; dirv = v / dist; perp = np.array([-dirv[1], dirv[0]]) * (1 if idx % 2 == 0 else -1)
-    T1 = T + dirv * 15 * S_UI                                     # overshoots a little
+    T1 = T + dirv * 7 * S_UI                                      # overshoots a touch
     ctrl = P0 + v * 0.45 + perp * 0.17 * dist
     u = minjerk((t - t0) / (t_arr - t0))
     pos = (1 - u) ** 2 * P0 + 2 * (1 - u) * u * ctrl + u ** 2 * T1
     if t > t_arr: pos = T1 + (T - T1) * minjerk((t - t_arr) / 0.30)
-    ph = idx * 1.7
-    tremor = 1.2 * S_UI * np.array([math.sin(2 * math.pi * 5.3 * t + ph) + 0.5 * math.sin(2 * math.pi * 11.0 * t + 2 * ph),
-                                    math.sin(2 * math.pi * 6.7 * t + 1.3 + ph) + 0.5 * math.sin(2 * math.pi * 9.1 * t + ph)])
-    pos = pos + tremor * (0.45 + 0.55 * (1 - u))
     pressed = t1 <= t <= t1 + 0.14
     ripple = (t - t1) / 0.45 if t1 <= t <= t1 + 0.45 else None
     return pos[0], pos[1], sm(t0, t0 + 0.35, t), pressed, ripple
@@ -380,7 +388,7 @@ def human_cursor(t, click, tgt, idx):
 def ease(k): return 4 * k ** 3 if k < 0.5 else 1 - (-2 * k + 2) ** 3 / 2
 
 def in_transition(t):
-    return T_TRAVEL1[0] <= t <= T_TRAVEL1[1] or T_BLUR[0] <= t <= T_BLUR[1] or T_TRAVEL2[0] <= t <= T_TRAVEL2[1]
+    return any(t0 <= t <= t1 for (t0, t1), *_ in TRAVELS) or T_BLUR[0] <= t <= T_BLUR[1]
 
 def draw_ui(img, t):
     sid = scene_at(t)
