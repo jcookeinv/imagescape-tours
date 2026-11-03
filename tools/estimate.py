@@ -12,7 +12,8 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 H_CAM = 1.6
-W, H = 512, 256
+import os
+W, H = int(os.environ.get('ES_W', 512)), int(os.environ.get('ES_H', 256))
 
 def load(path, w=W, h=H):
     im = Image.open(path).convert("L").resize((w, h), Image.LANCZOS)
