@@ -17,7 +17,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("out"); ap.add_argument("--w", type=int, default=3840); ap.add_argument("--h", type=int, default=2160)
 ap.add_argument("--fps", type=int, default=30); ap.add_argument("--workers", type=int, default=4)
 ap.add_argument("--no-ring", action="store_true"); ap.add_argument("--stills", default=""); ap.add_argument("--src", default="full")
-ARGS = ap.parse_args() if __name__ == "__main__" else ap.parse_args(["x"])
+ARGS = ap.parse_args()
 W, H, FPS = ARGS.w, ARGS.h, ARGS.fps
 H_CAM = 1.6
 D2R = math.pi / 180
