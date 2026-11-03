@@ -1,0 +1,26 @@
+{
+  "start": "006",
+  "titles": {
+    "006": "Café, entrance end",
+    "007": "Café, centre",
+    "025": "Gift shop, teddy display",
+    "026": "Gift shop, shop floor"
+  },
+  "views": {
+    "006": { "yaw": -28, "pitch": -3 },
+    "007": { "yaw": 0, "pitch": -3 },
+    "025": { "yaw": 6, "pitch": -3 },
+    "026": { "yaw": -100, "pitch": -5 }
+  },
+  "extra": {
+    "007": [{ "to": "025", "yaw": 72, "pitch": -12, "label": "Gift shop" }],
+    "025": [{ "to": "007", "yaw": 62, "pitch": -10, "label": "Café" }]
+  },
+  "identical": [],
+  "guided": [
+    { "id": "006", "start": { "yaw": -46, "pitch": -2 }, "pans": [{ "yaw": -30, "pitch": -2, "ms": 4500 }, { "yaw": 0, "pitch": -2, "ms": 3000 }] },
+    { "id": "007", "pans": [{ "yaw": -6, "pitch": -2, "ms": 3200 }, { "yaw": 12, "pitch": -2, "ms": 3000 }, { "yaw": 66, "pitch": -4, "ms": 3600 }] },
+    { "id": "025", "pans": [{ "yaw": 22, "pitch": -3, "ms": 5500 }] },
+    { "id": "026", "pans": [{ "yaw": -45, "pitch": -5, "ms": 5500 }, { "yaw": 20, "pitch": -4, "ms": 5500 }] }
+  ]
+}

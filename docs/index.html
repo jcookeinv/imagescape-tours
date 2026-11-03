@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:dark}html,body{margin:0;height:100%}body{font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>ImageScape 360 Tour</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: full-bleed 360 stage, scene title top left, tour controls and scene chips in a bottom bar.
+   Single dark look on purpose: the photos are the colour, the interface stays out of their way. */
+:root {
+  --ink: #101412;
+  --panel: rgba(16, 20, 18, 0.66);
+  --panel-solid: #1a201d;
+  --line: rgba(255, 255, 255, 0.18);
+  --text: #f3efe6;
+  --muted: #c2bdb0;
+  --lamp: #f2b45c;
+  --lamp-ink: #1d1407;
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--text); font-family: var(--body); overflow: hidden; }
+#app { position: relative; height: 100%; min-height: 360px; overflow: hidden; background: var(--ink); touch-action: none; user-select: none; -webkit-user-select: none; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+#gl.drag { cursor: grabbing; }
+
+.top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 14px max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.title { min-width: 0; padding: 10px 14px; border-radius: 10px; background: var(--panel); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--line); }
+.title small { display: block; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.title b { display: block; font: 700 18px/1.2 var(--display); text-wrap: balance; }
+.tools { display: flex; gap: 8px; pointer-events: auto; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--panel); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-weight: 500; font-size: 14px; }
+.btn:hover { background: rgba(40, 48, 44, 0.8); }
+.btn.primary { background: var(--lamp); color: var(--lamp-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { background: #f6c27a; }
+:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.hint { align-self: center; padding: 8px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; color: var(--muted);
+  transition: opacity 0.6s; pointer-events: none; text-align: center; }
+.hint.gone { opacity: 0; }
+.bar { display: flex; gap: 8px; align-items: center; width: 100%; pointer-events: auto; }
+.chips { display: flex; gap: 8px; overflow-x: auto; min-width: 0; flex: 1; scrollbar-width: none; padding: 2px 0; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; min-height: 44px; padding: 6px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.chip span { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { font-weight: 500; font-size: 14px; white-space: nowrap; }
+.chip:hover { background: rgba(40, 48, 44, 0.8); }
+.chip[aria-current="true"] { border-color: var(--lamp); box-shadow: inset 0 0 0 1px var(--lamp); }
+.chip[aria-current="true"] span { color: var(--lamp); }
+
+/* hotspots */
+#hs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hs { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; pointer-events: auto;
+  transform: translate(-100px, -100px); will-change: transform; }
+.hs[hidden] { display: none; }
+.ring { position: relative; flex: none; width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; background: rgba(16, 20, 18, 0.6); border: 2px solid var(--text);
+  display: grid; place-items: center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: background 0.2s, transform 0.2s; }
+.ring::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid var(--lamp); opacity: 0; animation: pulse 2.4s ease-out infinite; }
+.ring svg { width: 20px; height: 20px; }
+.hs:hover .ring, .hs:focus-visible .ring { background: var(--lamp); transform: scale(1.08); }
+.hs:hover .ring svg path, .hs:focus-visible .ring svg path { stroke: var(--lamp-ink); }
+.lab { padding: 6px 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; font-weight: 500; white-space: nowrap;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+@keyframes pulse { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.35); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ring::after { animation: none; } .hint { transition: none; } }
+
+#msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; background: var(--ink); z-index: 5; }
+#msg p { max-width: 36ch; color: var(--muted); }
+#msg[hidden] { display: none; }
+.tourpill { display: none; padding: 8px 12px; border-radius: 999px; background: var(--lamp); color: var(--lamp-ink); font-size: 13px; font-weight: 600; pointer-events: none; }
+#app.touring .tourpill { display: inline-block; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff5a5f; flex: none; }
+#app.recording #recBtn { border-color: #ff5a5f; }
+#app.recording .tourpill { background: #e5484d; color: #fff; }
+.toast { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); max-width: min(560px, calc(100% - 32px)); padding: 10px 14px; border-radius: 10px;
+  background: var(--panel-solid); border: 1px solid var(--line); font-size: 13px; line-height: 1.4; z-index: 4; }
+.toast[hidden] { display: none; }
+@media (max-width: 560px) {
+  .title b { font-size: 16px; }
+  .btn .t { display: none; }
+  .lab { display: none; }
+}
+</style>
+
+<div id="app">
+  <canvas id="gl" aria-label="360 degree view. Drag to look around."></canvas>
+  <div id="hs"></div>
+  <div class="top">
+    <div class="title"><small id="sceneNo">Scene 1 of 4</small><b id="sceneTitle">Caf&eacute;, entrance end</b></div>
+    <div class="tools">
+      <span class="tourpill" id="pill">Guided tour</span>
+      <button class="btn primary" id="tourBtn" type="button"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path id="tourIcon" d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg><span class="t" id="tourTxt">Play guided tour</span></button>
+      <button class="btn" id="walkBtn" type="button"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h8M7 3l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="t">Walk the route</span></button>
+      <button class="btn" id="recBtn" type="button"><span class="rec-dot"></span><span class="t" id="recTxt">Record tour</span></button>
+      <button class="btn" id="fsBtn" type="button" aria-label="Full screen"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="hint" id="hint">Drag to look around. Scroll or pinch to zoom. Tap a ring to move.</div>
+    <div class="hint" id="sharp" hidden>Loading full resolution...</div>
+    <div class="bar"><div class="chips" id="chips"></div></div>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div id="msg"><p id="msgTxt">Loading the 360 photos...</p></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="scenes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
