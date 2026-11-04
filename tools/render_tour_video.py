@@ -9,7 +9,7 @@ positions (see tools/estimate_all.py); poses are (yaw, pitch, hfov) in degrees.
 import sys, os, math, json, subprocess, argparse
 import numpy as np
 from multiprocessing import Pool
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 Image.MAX_IMAGE_PIXELS = None
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -219,13 +219,35 @@ def render_pano(t):
     R0, R1 = 0, H
     a = np.concatenate(A, 0) if A[0] is not None else None
     b = np.concatenate(B, 0) if B[0] is not None else None
-    if pl[0] == "scene": return a
+    if pl[0] == "scene": return seam_sharpen(a, pl[1], POSE[pl[1]](t))
+    if pl[0] == "zoom":
+        e = pl[1]; a = seam_sharpen(a, "008", POSE["008"](t), 1 / (1 + 0.5 * e))
     k = pl[5] if pl[0] == "geo" else sm(0.44, 0.56, pl[1])
     if pl[0] == "geo" and (pl[1], pl[2]) == ("007", "008") and a is not None and b is not None:
         a, b = ring_morph(a, b, t, k, pl[4])
     img = a if b is None else b if a is None else match_blend(a, b, k)
     amount = pl[6] if pl[0] == "geo" else 0.12 * math.sin(math.pi * pl[1]) ** 2
     return radial_blur(img, amount, taps=11 if pl[0] == "geo" else 15)
+
+
+# ---- the 008 photo is soft and doubled just right of the Gift Shop ring (near objects across the camera's stitching seam) ----
+# Moderate sharpening, limited to that band of directions (yaw 62-118 degrees), so the rest of the frame is untouched.
+SEAM_SHARPEN = {"008": (62.0, 74.0, 106.0, 118.0)}                    # ramp up from, full from, full to, ramp down to (yaw, degrees)
+def seam_sharpen(img, name, pose, fov_scale=1.0):
+    band = SEAM_SHARPEN.get(name)
+    if band is None or img is None: return img
+    h, w = img.shape[:2]; tx = math.tan(pose[2] * fov_scale * D2R / 2)
+    xs = (np.arange(w) + 0.5) / w * 2 - 1
+    yaw = pose[0] + np.degrees(np.arctan(xs * tx))
+    a, b, c, d = band
+    wt = np.clip((yaw - a) / (b - a), 0, 1) * np.clip((d - yaw) / (d - c), 0, 1)
+    wt = (wt * wt * (3 - 2 * wt)).astype(np.float32)[None, :, None]
+    if wt.max() <= 0.001: return img
+    x0 = int(max(0, np.argmax(wt[0, :, 0] > 0.001) - 4)); x1 = int(min(w, w - np.argmax(wt[0, ::-1, 0] > 0.001) + 4))
+    sub = np.clip(img[:, x0:x1], 0, 255).astype(np.uint8)
+    sharp = np.asarray(Image.fromarray(sub).filter(ImageFilter.UnsharpMask(radius=2.4 * w / 1920.0, percent=170, threshold=1)), np.float32)
+    out = img.copy(); out[:, x0:x1] = img[:, x0:x1] * (1 - wt[:, x0:x1]) + sharp * wt[:, x0:x1]
+    return out
 
 # ---- blending helpers -------------------------------------------------------------------------------------------
 def remap(img, xs, ys):
