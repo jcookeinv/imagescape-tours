@@ -31,7 +31,7 @@ NAMED = {"005": "Coffee Shop Entrance", "010": "Sofa Lounge", "017": "Coffee Cou
          "030": "Flowers & Clothing", "031": "Gift Cabinets", "032": "Farmyard", "033": "Courtyard", "034": "Paddock",
          "035": "Farm Track", "036": "Car Park"}
 def title_of(i): return NAMED.get(i, "Scene %02d" % (IDS.index(i) + 1))
-VIDEO_EXTRA = {"008": [{"to": "025", "yaw": 80, "pitch": -14, "label": "Gift Shop"}],
+VIDEO_EXTRA = {"008": [{"to": "025", "yaw": 74, "pitch": -11.5, "label": "Gift Shop"}],
                "026": [{"to": "025", "yaw": 71, "pitch": -9, "label": "Till Area"}]}
 def link(a, b):
     l = TOUR["links"].get(a + ">" + b); return l if l and l["ok"] else None
@@ -70,7 +70,7 @@ SEG = {
     # look across to the stall on the right, linger on it, then come back to the Scene 04 ring
     "007": [(24.1, y7, -3, 64), (24.7, y7, -3, 64), (27.5, 44, -3, 56), (30.1, 52, -3, 48), (33.4, HEAD78, -3, 64),
             (33.9, HEAD78, -3, 64), (38.4, Y8_END, -3, 64)],
-    "008": [(38.4, y8, -3, 64), (39.0, y8, -3, 64), (46.6, 80, -11, 56), (47.9, 80, -11, 54), (49.3, 80, -11, 52)],
+    "008": [(38.4, y8, -3, 64), (39.0, y8, -3, 64), (46.6, 64, -3, 58), (47.9, 64, -3, 56), (49.3, 66, -3, 54)],
     "025": [(47.9, -148, -3, 58), (51.5, -140, -3, 56), (55.5, -130, -3, 56), (59.5, -122, -3, 56), (62.9, -110, -3, 58), (67.4, HEAD2526, -3, 62)],
     "026": [(67.4, y26, -3, 62), (69.8, y26, -3, 62), (77.8, y26 + 70, -3, 62), (85.8, y26 + 140, -3, 61), (93.8, y26 + 210, -3, 60),
             (99.4, y26 + 258, -3, 60), (101.2, y26 + 260, -3, 60)],
