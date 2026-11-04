@@ -101,15 +101,20 @@ for name, keys in SEG.items():
 def sm(a, b, x):
     x = min(1.0, max(0.0, (x - a) / (b - a))); return x * x * x * (x * (6 * x - 15) + 10)
 
-# measured gain that makes a scene continue the exposure of the previous one (median ratio over the shared view)
-EXPO = {"026": np.array([1.213, 1.269, 1.28], np.float32)}
+# 026 was shot darker than 025. A tone curve measured over the view both photos share lifts its shadows (up to about 1.8x) much
+# more than its highlights, plus a slight colour-balance correction, so the grey cabinets match what 025 shows (tools/expo_026.json).
+EXPO_FILE = os.path.join(ROOT, "tools", "expo_%s.json")
+EXPO = {}
+for _n in ("026",):
+    if os.path.exists(EXPO_FILE % _n): EXPO[_n] = json.load(open(EXPO_FILE % _n))
 def expo(img, name):
-    g = EXPO.get(name)
-    if g is None or img is None: return img
-    y = img * g
+    e = EXPO.get(name)
+    if e is None or img is None: return img
+    L = img @ np.array([0.299, 0.587, 0.114], np.float32)
+    g = np.interp(L, np.arange(256, dtype=np.float32), np.array(e["gain"], np.float32)).astype(np.float32)
+    y = img * g[..., None] * np.array(e["rgb"], np.float32)
     hi = 225.0                                   # soft shoulder so lifted highlights roll off instead of clipping
-    over = y > hi
-    return np.where(over, hi + (255 - hi) * (1 - np.exp(-(y - hi) / (255 - hi))), y).astype(np.float32)
+    return np.where(y > hi, hi + (255 - hi) * (1 - np.exp(-(y - hi) / (255 - hi))), y).astype(np.float32)
 
 # ---- panorama rendering ----------------------------------------------------------------------------------------
 SRC = {}
